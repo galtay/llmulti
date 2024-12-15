@@ -2,6 +2,7 @@
 from
 https://github.com/mosaicml/llm-foundry/blob/main/llmfoundry/data/text_data.py
 """
+
 import os
 from typing import (
     Any,
@@ -19,15 +20,16 @@ import torch
 from transformers import PreTrainedTokenizerBase
 
 SUPPORTED_MDS_ENCODING_TYPES = [
-    'int8',
-    'int16',
-    'int32',
-    'int64',
-    'uint8',
-    'uint16',
-    'uint32',
-    'uint64',
+    "int8",
+    "int16",
+    "int32",
+    "int64",
+    "uint8",
+    "uint16",
+    "uint32",
+    "uint64",
 ]
+
 
 def stream_remote_local_validate(
     remote: Optional[str],
@@ -46,8 +48,9 @@ def stream_remote_local_validate(
             contents = set(os.listdir(local))
             if split is not None and split not in contents:
                 raise ValueError(
-                    f'Local directory {local} does not contain split {split}',
+                    f"Local directory {local} does not contain split {split}",
                 )
+
 
 class StreamingTextDataset(StreamingDataset):
     """Generic text dataset using MosaicML's StreamingDataset.
@@ -124,7 +127,7 @@ class StreamingTextDataset(StreamingDataset):
         self,
         tokenizer: PreTrainedTokenizerBase,
         max_seq_len: int,
-        token_encoding_type: str = 'int64',
+        token_encoding_type: str = "int64",
         streams: Optional[Sequence[Stream]] = None,
         remote: Optional[str] = None,
         local: Optional[str] = None,
@@ -136,16 +139,16 @@ class StreamingTextDataset(StreamingDataset):
         epoch_size: Optional[Union[int, str]] = None,
         predownload: Optional[int] = None,
         cache_limit: Optional[Union[int, str]] = None,
-        partition_algo: str = 'relaxed',
+        partition_algo: str = "relaxed",
         num_canonical_nodes: Optional[int] = None,
         batch_size: Optional[int] = None,
         shuffle: bool = False,
-        shuffle_algo: str = 'py1e',
+        shuffle_algo: str = "py1e",
         shuffle_seed: int = 9176,
         shuffle_block_size: Optional[int] = None,
-        sampling_method: str = 'balanced',
+        sampling_method: str = "balanced",
         sampling_granularity: int = 1,
-        batching_method: str = 'random',
+        batching_method: str = "random",
         allow_unsafe_types: bool = False,
         replication: Optional[int] = None,
         **kwargs: Any,
@@ -153,7 +156,7 @@ class StreamingTextDataset(StreamingDataset):
 
         if token_encoding_type not in SUPPORTED_MDS_ENCODING_TYPES:
             raise ValueError(
-                f'The token_encoding_type must be one of {SUPPORTED_MDS_ENCODING_TYPES}, but got {token_encoding_type}',
+                f"The token_encoding_type must be one of {SUPPORTED_MDS_ENCODING_TYPES}, but got {token_encoding_type}",
             )
         self.token_encoding_type = token_encoding_type
 
@@ -206,13 +209,13 @@ class StreamingTextDataset(StreamingDataset):
         if self.tokenizer._pad_token is None:
             # Some tokenizers (e.g. GPT2 tokenizer) have no padding token which causes bugs
             raise RuntimeError(
-                'If tokenizing on-the-fly, tokenizer must have a pad_token_id',
+                "If tokenizing on-the-fly, tokenizer must have a pad_token_id",
             )
 
         return self.tokenizer(
-            text_sample['text'],
+            text_sample["text"],
             truncation=True,
-            padding='max_length',
+            padding="max_length",
             max_length=self.max_seq_len,
         )
 
@@ -221,28 +224,27 @@ class StreamingTextDataset(StreamingDataset):
         sample: dict[str, Any],
     ) -> torch.Tensor:
         # Modeling code still expects int64 tensors.
-        if isinstance(sample['tokens'], np.ndarray):
+        if isinstance(sample["tokens"], np.ndarray):
             return torch.from_numpy(
-                sample['tokens'][:self.max_seq_len].copy(),
+                sample["tokens"][: self.max_seq_len].copy(),
             ).to(torch.int64)
         else:
             return torch.from_numpy(
                 np.frombuffer(
-                    sample['tokens'],
+                    sample["tokens"],
                     dtype=getattr(np, self.token_encoding_type),
-                )[:self.max_seq_len].copy(),
+                )[: self.max_seq_len].copy(),
             ).to(torch.int64)
 
     # How to process a sample
-    def __getitem__(self,
-                    idx: int) -> Union[dict[str, list[int]], torch.Tensor]:
+    def __getitem__(self, idx: int) -> Union[dict[str, list[int]], torch.Tensor]:
         sample = super().__getitem__(idx)
-        if 'text' in sample:
+        if "text" in sample:
             token_sample = self._tokenize(sample)
-        elif 'tokens' in sample:
+        elif "tokens" in sample:
             token_sample = self._read_binary_tokenized_sample(sample)
         else:
             raise RuntimeError(
-                'StreamingTextDataset needs samples to have a `text` or `tokens` column',
+                "StreamingTextDataset needs samples to have a `text` or `tokens` column",
             )
         return token_sample

@@ -5,6 +5,7 @@ https://github.com/pytorch/examples/tree/main/distributed/ddp-tutorial-series
 
 import argparse
 
+from datasets import load_dataset
 import pandas as pd
 import torch
 import torch.nn.functional as F
@@ -33,6 +34,7 @@ class Trainer:
         save_every: int,
         log_every: int,
         bf16_mixed: bool,
+        lr_scheduler: optim.lr_scheduler.LRScheduler,
     ) -> None:
         self.gpu_id = gpu_id
         self.model = model.to(gpu_id)
@@ -41,6 +43,7 @@ class Trainer:
         self.save_every = save_every
         self.log_every = log_every
         self.bf16_mixed = bf16_mixed
+        self.lr_scheduler = lr_scheduler
 
     def _run_batch(self, source, targets):
         if self.bf16_mixed:
@@ -60,6 +63,8 @@ class Trainer:
             loss.backward()
             self.optimizer.step()
             self.optimizer.zero_grad()
+
+        self.lr_scheduler.step()
         return loss.item()
 
     def _run_epoch(self, epoch):
@@ -76,7 +81,14 @@ class Trainer:
             if step % self.log_every == 0:
                 avg_loss = sum(loss_buffer) / len(loss_buffer)
                 if self.gpu_id == 0:
-                    wandb.log(data={"train-loss": avg_loss}, step=step)
+                    current_lr = self.lr_scheduler.get_last_lr()[0]
+                    wandb.log(
+                        data={
+                            "train-loss": avg_loss,
+                            "learning_rate": current_lr,
+                        },
+                        step=step,
+                    )
                 loss_buffer = []
             if step % self.save_every == 0 and step != 0 and self.gpu_id == 0:
                 self._save_checkpoint(step)
@@ -100,6 +112,7 @@ def get_bert_tokenizer():
 
 
 class SimpleDataset(Dataset):
+
     def __init__(self, local):
         self.local = local
         self.df = pd.read_parquet(self.local)
@@ -113,9 +126,25 @@ class SimpleDataset(Dataset):
         ).to(torch.int64)
 
 
+class HfDataset(Dataset):
+
+    def __init__(self, name, split):
+        self.name = name
+        self.split = split
+        self.ds = load_dataset(name, split=split)
+        self.ds.set_format(type="torch", columns=["tokens"])
+
+    def __len__(self):
+        return len(self.ds)
+
+    def __getitem__(self, idx):
+        return self.ds[idx]["tokens"]
+
+
 def load_train_objs(args):
-    train_ds = SimpleDataset(local="smollm-corpus-mini-val.parquet")
+    # train_ds = SimpleDataset(local="smollm-corpus-mini-val.parquet")
     # train_ds = SimpleDataset(local="smollm-corpus-mini-train.parquet")
+    train_ds = HfDataset("gabrielaltay/smollm-mini", "validation")
 
     tokenizer = get_bert_tokenizer()
     vocab_size = len(tokenizer)
@@ -128,7 +157,7 @@ def load_train_objs(args):
     model = GPTClone(
         vocab_size, d_model, n_heads, num_layers, feedforward_dim, dropout, seq_length
     )
-    optimizer = optim.AdamW(model.parameters(), lr=args.learning_rate)
+    optimizer = optim.AdamW(model.parameters(), lr=args.lr_max)
 
     return train_ds, model, optimizer
 
@@ -144,6 +173,14 @@ def main(args):
         pin_memory=True,
         shuffle=False,
     )
+    total_steps = len(train_dl) * args.max_epochs
+    lr_scheduler = torch.optim.lr_scheduler.OneCycleLR(
+        optimizer,
+        max_lr=args.lr_max,
+        total_steps=total_steps,
+        pct_start=args.lr_pct_start,
+        final_div_factor=args.lr_final_div,
+    )
     trainer = Trainer(
         model,
         train_dl,
@@ -152,6 +189,7 @@ def main(args):
         args.save_every,
         args.log_every,
         args.bf16_mixed,
+        lr_scheduler=lr_scheduler,
     )
     trainer.train(args.max_epochs)
 
@@ -173,7 +211,19 @@ if __name__ == "__main__":
         "--log_every", type=int, default=8, help="log after this many steps"
     )
     parser.add_argument(
-        "--learning_rate", type=float, default=1e-4, help="maximum learning rate"
+        "--lr_max", type=float, default=2e-4, help="maximum learning rate"
+    )
+    parser.add_argument(
+        "--lr_pct_start",
+        type=float,
+        default=5e-2,
+        help="percent of total time for warmup",
+    )
+    parser.add_argument(
+        "--lr_final_div",
+        type=float,
+        default=1e1,
+        help="lr_max / lr_final_div = final learning rate",
     )
     parser.add_argument(
         "--batch_size", default=32, type=int, help="input batch size on each device"

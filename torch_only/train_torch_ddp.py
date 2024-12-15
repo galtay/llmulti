@@ -114,7 +114,7 @@ class SimpleDataset(Dataset):
         return self.df.shape[0]
     def __getitem__(self, idx):
         return torch.from_numpy(
-            self.df.iloc[idx]['tokens'],
+            self.df.iloc[idx]['tokens'].copy(),
         ).to(torch.int64)
 
 

@@ -103,18 +103,19 @@ class SimpleDataset(Dataset):
         return self.df.shape[0]
     def __getitem__(self, idx):
         return torch.from_numpy(
-            self.df.iloc[idx]['tokens'],
+            self.df.iloc[idx]['tokens'].copy(),
         ).to(torch.int64)
 
 
 
 def load_train_objs(args):
-    #train_ds = SimpleDataset(local="smollm-corpus-mini-val.parquet")
-    train_ds = SimpleDataset(local="smollm-corpus-mini-train.parquet")
+    train_ds = SimpleDataset(local="smollm-corpus-mini-val.parquet")
+    #train_ds = SimpleDataset(local="smollm-corpus-mini-train.parquet")
 
     tokenizer = get_bert_tokenizer()
     vocab_size = len(tokenizer)
     d_model = 768
+    feedforward_dim = d_model * 4
     n_heads = 12
     num_layers = 6
     dropout = 0.1
@@ -124,7 +125,7 @@ def load_train_objs(args):
         d_model,
         n_heads,
         num_layers,
-        d_model * 4,
+        feedforward_dim,
         dropout,
         seq_length
     )
@@ -158,7 +159,7 @@ if __name__ == "__main__":
     parser.add_argument('--learning_rate', type=float, default=1e-4, help='maximum learning rate')
     parser.add_argument('--batch_size', default=32, type=int, help='input batch size on each device')
     parser.add_argument('--torch_seed', default=1337, type=int, help='seed for torch.manual_seed')
-    parser.add_argument('--wandb_project', default="ddp_tutorial", type=str, help='wandb project name')
+    parser.add_argument('--wandb_project', default="llmulti", type=str, help='wandb project name')
     args = parser.parse_args()
     print(args)
     main(args)

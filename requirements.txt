@@ -11,6 +11,7 @@ azure-identity==1.19.0
 azure-storage-blob==12.24.0
 azure-storage-file-datalake==12.18.0
 bcrypt==4.2.1
+black==24.10.0
 blinker==1.9.0
 boto3==1.35.79
 botocore==1.35.79
@@ -81,6 +82,7 @@ msal==1.31.1
 msal-extensions==1.2.0
 multidict==6.1.0
 multiprocess==0.70.16
+mypy-extensions==1.0.0
 networkx==3.4.2
 ninja==1.11.1.2
 numpy==2.2.0
@@ -104,6 +106,7 @@ packaging==24.2
 pandas==2.2.3
 paramiko==3.5.0
 parso==0.8.4
+pathspec==0.12.1
 pexpect==4.9.0
 pillow==11.0.0
 platformdirs==4.3.6

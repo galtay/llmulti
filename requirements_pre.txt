@@ -1,0 +1,4 @@
+packaging==24.2
+wheel==0.45.1
+ninja==1.11.1.2
+torch==2.5.1

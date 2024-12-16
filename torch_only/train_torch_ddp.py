@@ -9,6 +9,7 @@ torchrun --standalone --nproc_per_node=2 train_torch_ddp.py
 import argparse
 import os
 
+from datasets import load_dataset
 import pandas as pd
 import torch
 import torch.nn.functional as F
@@ -30,8 +31,8 @@ torch.set_float32_matmul_precision("high")
 
 
 def ddp_setup():
-    # init_process_group(backend='nccl')
-    init_process_group(backend="gloo")
+    init_process_group(backend='nccl')
+    # init_process_group(backend="gloo")
 
 
 class Trainer:
@@ -124,9 +125,25 @@ class SimpleDataset(Dataset):
         ).to(torch.int64)
 
 
+class HfDataset(Dataset):
+
+    def __init__(self, name, split):
+        self.name = name
+        self.split = split
+        self.ds = load_dataset(name, split=split)
+        self.ds.set_format(type="torch", columns=["tokens"])
+
+    def __len__(self):
+        return len(self.ds)
+
+    def __getitem__(self, idx):
+        return self.ds[idx]["tokens"]
+
+
 def load_train_objs(args):
     # train_ds = SimpleDataset(local="smollm-corpus-mini-val.parquet")
-    train_ds = SimpleDataset(local="smollm-corpus-mini-train.parquet")
+    # train_ds = SimpleDataset(local="smollm-corpus-mini-train.parquet")
+    train_ds = HfDataset("gabrielaltay/smollm-mini", "validation")
 
     tokenizer = get_bert_tokenizer()
     vocab_size = len(tokenizer)
@@ -188,7 +205,7 @@ if __name__ == "__main__":
         "--torch_seed", default=1337, type=int, help="seed for torch.manual_seed"
     )
     parser.add_argument(
-        "--wandb_project", default="ddp_tutorial", type=str, help="wandb project name"
+        "--wandb_project", default="llmulti", type=str, help="wandb project name"
     )
     args = parser.parse_args()
     print(args)
